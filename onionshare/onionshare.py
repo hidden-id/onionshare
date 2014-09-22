@@ -29,7 +29,7 @@ class NoTor(Exception): pass
 class TailsError(Exception): pass
 
 class OnionShare(object):
-    def __init__(self, debug=False, local_only=False, stay_open=False):
+    def __init__(self, debug=False, local_only=False, stay_open=False, use_hidservauth=False):
         self.port = None
 
         # debug mode
@@ -41,6 +41,9 @@ class OnionShare(object):
 
         # automatically close when download is finished
         self.stay_open = stay_open
+
+        # use stealth authenticated hidden service
+        self.use_hidservauth = use_hidservauth
 
         # files and dirs to delete on shutdown
         self.cleanup_filenames = []
@@ -103,17 +106,30 @@ class OnionShare(object):
                     raise NoTor(strings._("cant_connect_ctrlport").format(tor_control_ports))
                 controller.authenticate()
 
-                # set up hidden service
-                controller.set_options([
+                # prep HS options
+                options = [
                     ('HiddenServiceDir', hidserv_dir),
                     ('HiddenServicePort', '80 127.0.0.1:{0}'.format(self.port))
-                ])
+                ]
+                if self.use_hidservauth:
+                    options.append(('HiddenServiceAuthorizeClient', 'stealth alice'))
+
+                # set up hidden service
+                controller.set_options(options)
 
                 # figure out the .onion hostname
                 hostname_file = '{0}/hostname'.format(hidserv_dir)
-                self.onion_host = open(hostname_file, 'r').read().strip()
+                if self.use_hidservauth:
+                    self.hidservauth = open(hostname_file, 'r').read().split(' #')[0]
+                    self.onion_host = self.hidservauth.split()[0]
+
+                    # set the hidservauth option too, so onionshare can connect to itself
+                    controller.set_options({'HidServAuth': self.hidservauth})
+                else:
+                    self.onion_host = open(hostname_file, 'r').read().strip()
 
     def wait_for_hs(self):
+        print self.onion_host
         if self.local_only:
             return True
 
@@ -147,7 +163,7 @@ class OnionShare(object):
                 ready = True
 
                 sys.stdout.write('{0}\n'.format(strings._('wait_for_hs_yup')))
-            except socks.SOCKS5Error: # non-Tails error
+            except socks.SOCKS5Error as e: # non-Tails error
                 sys.stdout.write('{0}\n'.format(strings._('wait_for_hs_nope')))
                 sys.stdout.flush()
             except urllib2.HTTPError: # Tails error
@@ -201,6 +217,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--local-only', action='store_true', dest='local_only', help=strings._("help_local_only"))
     parser.add_argument('--stay-open', action='store_true', dest='stay_open', help=strings._("help_stay_open"))
+    parser.add_argument('--use-hidservauth', action='store_true', dest='use_hidservauth', help=strings._("help_use_hidservauth"))
     parser.add_argument('--debug', action='store_true', dest='debug', help=strings._("help_debug"))
     parser.add_argument('filename', metavar='filename', nargs='+', help=strings._('help_filename'))
     args = parser.parse_args()
@@ -212,6 +229,7 @@ def main():
     local_only = bool(args.local_only)
     debug = bool(args.debug)
     stay_open = bool(args.stay_open)
+    use_hidservauth = bool(args.use_hidservauth)
 
     # validation
     valid = True
@@ -224,7 +242,7 @@ def main():
 
     # start the onionshare app
     try:
-        app = OnionShare(debug, local_only, stay_open)
+        app = OnionShare(debug, local_only, stay_open, use_hidservauth)
         app.choose_port()
         print strings._("connecting_ctrlport").format(app.port)
         app.start_hidden_service()
@@ -257,6 +275,10 @@ def main():
     print strings._("give_this_url")
     print 'http://{0}/{1}'.format(app.onion_host, web.slug)
     print ''
+    if use_hidservauth:
+        print strings._("give_this_hidservauth")
+        print 'HidServAuth {0}'.format(app.hidservauth)
+        print ''
     print strings._("ctrlc_to_stop")
 
     # wait for app to close
