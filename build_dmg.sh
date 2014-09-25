@@ -14,8 +14,20 @@ echo Deleting dist folder
 rm -rf $ROOT/dist &>/dev/null 2>&1
 
 # build the .app
-echo Building OnionShare.app 
+echo Building OnionShare.app
 pyinstaller -w -y $ROOT/setup/onionshare-osx.spec
+
+# hack to get around horribly pyinstaller bug that prevents code signing in OSX
+# more info: http://www.pyinstaller.org/ticket/812
+#            https://groups.google.com/forum/#!topic/PyInstaller/Rp6UUSJ7dP4
+#            https://github.com/pyinstaller/pyinstaller/pull/113
+rm -rf $ROOT/dist/OnionShare.app/Contents/MacOS/qt_menu.nib/
+mv $ROOT/dist/OnionShare.app/Contents/MacOS/{*,.Python} $ROOT/dist/OnionShare.app/Contents/Resources
+cp $ROOT/setup/onionshare-launcher_osxhack.applescript $ROOT/dist/OnionShare.app/Contents/MacOS/onionshare-launcher
+chmod 755 $ROOT/dist/OnionShare.app/Contents/MacOS/onionshare-launcher
+
+# sign binaries
+codesign -s "Micah Lee" -v $ROOT/dist/OnionShare.app
 
 # create the .dmg
 echo Creating DMG

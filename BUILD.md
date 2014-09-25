@@ -29,6 +29,8 @@ sudo yum install -y dist/onionshare-*.rpm
 
 ## Mac OS X
 
+### Setting up your dev environment
+
 To install the right dependencies, you need homebrew and pip installed on your Mac. Follow instructions at http://brew.sh/ to install homebrew, and run `sudo easy_install pip` to install pip.
 
 The first time you're setting up your dev environment:
@@ -45,6 +47,10 @@ virtualenv env
 pip install flask stem pyinstaller
 ```
 
+If you want to sign binaries you'll need to a code signing certificate and secret key added to Keychain Access. I use the same pfx file I use for the Windows binary (see Windows section). Since I'm using StartSSL I found that I had to import the [intermediate cert](https://www.startssl.com/certs/sub.class2.code.ca.pem) too.
+
+### Build the .app
+
 Each time you start work:
 
 ```sh
@@ -59,11 +65,11 @@ pyinstaller -w -y setup/onionshare-osx.spec
 
 Now you should have `dist/OnionShare.app`.
 
-To build a .dmg (this script builds the .app for you):
+### Build the installer
 
-```sh
-./build_dmg.sh
-```
+Note that you must have a code signing certificate and secret key imported into Keychain Access to run `build_dmg.sh`, because it signs the binaries that it packages.
+
+To build a .dmg (this script builds the .app for you): `./build_dmg.sh`
 
 Now you should have `dist/OnionShare.dmg`.
 
@@ -93,11 +99,11 @@ If you want to sign binaries with Authenticode:
 * You'll also, of course, need a code signing certificate. I roughly followed [this guide](http://blog.assarbad.net/20110513/startssl-code-signing-certificate/) to make one using my StartSSL account.
 * Once you get a code signing key and certificate and covert it to a pfx file, import it into your certificate store.
 
-### To make a .exe:
+### To build the .exe
 
 * Open a command prompt, cd into the onionshare directory, and type: `pyinstaller -y setup\onionshare-win.spec`. Inside the `dist` folder there will be a folder called `onionshare` with `onionshare.exe` in it.
 
-### To build the installer:
+### To build the installer
 
 Note that you must have a code signing certificate installed in order to use the `build_exe.bat` script, because it tries code signing both `onionshare.exe` and `OnionShare_Setup.exe`.
 
