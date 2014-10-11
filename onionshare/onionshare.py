@@ -21,6 +21,7 @@ import os, sys, subprocess, time, argparse, inspect, shutil, socket, threading, 
 import socks
 
 from stem.control import Controller
+from stem.connection import MissingPassword, AuthenticationFailure
 from stem import SocketError
 
 import strings, helpers, web
@@ -118,7 +119,17 @@ class OnionShare(object):
                         pass
                 if not self.controller:
                     raise NoTor(strings._("cant_connect_ctrlport").format(tor_control_ports))
-                controller.authenticate()
+                try:
+                    controller.authenticate()
+                except MissingPassword:  # We need a password for control port
+                    from getpass import getpass
+                    authed = False
+                    while not authed:
+                        try:
+                            controller.authenticate(getpass('Tor control password: '))
+                            authed = True
+                        except AuthenticationFailure:
+                            pass
 
                 # set up hidden service
                 self.original_hs = self.controller.get_conf_map('HiddenServiceOptions') or {
