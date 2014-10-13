@@ -127,13 +127,13 @@ class OnionShare(object):
                 if not self.controller:
                     raise NoTor(strings._("cant_connect_ctrlport").format(tor_control_ports))
                 try:
-                    controller.authenticate()
+                    self.controller.authenticate()
                 except MissingPassword:  # We need a password for control port
                     from getpass import getpass
                     authed = False
                     while not authed:
                         try:
-                            controller.authenticate(getpass('{0}: '.format(strings._('tor_control_password'))))
+                            self.controller.authenticate(getpass('{0}: '.format(strings._('tor_control_password'))))
                             authed = True
                         except AuthenticationFailure:
                             pass
@@ -304,8 +304,9 @@ def main():
         print strings._("ctrlc_to_stop")
     
         # wait for app to close
-        while True:
-            time.sleep(0.5)
+        while t.is_alive():
+            # t.join() can't catch KeyboradInterrupt in such as Ubuntu
+            t.join(0.5)
     except KeyboardInterrupt:
         web.stop(app.port)
     finally:
