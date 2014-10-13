@@ -60,7 +60,7 @@ class OnionShare(object):
         self.port = tmpsock.getsockname()[1]
         tmpsock.close()
 
-    def start_hidden_service(self, gui=False, tails_root=False):
+    def start_hidden_service(self, gui=False, tails_root=False, persistent_hs_dir=None):
         if not self.port:
             self.choose_port()
 
@@ -86,9 +86,16 @@ class OnionShare(object):
                 self.onion_host = '127.0.0.1:{0}'.format(self.port)
 
             else:
-                # come up with a hidden service directory name
-                hidserv_dir = '{0}/onionshare_{1}'.format(helpers.get_tmp_dir(), helpers.random_string(8))
-                self.cleanup_filenames.append(hidserv_dir)
+                # Come up with a hidden service directory name
+                if persistent_hs_dir:
+                    # We're relaying a service that needs a publicly
+                    # known .onion URL (e.g. HiddenID)
+                    hidserv_dir = persistent_hs_dir
+                else:
+                    # Create a temporary hidden service,
+                    # and tell cleanup to destroy it later
+                    hidserv_dir = '{0}/onionshare_{1}'.format(helpers.get_tmp_dir(), helpers.random_string(8))
+                    self.cleanup_filenames.append(hidserv_dir)
 
                 # connect to the tor controlport
                 controller = False
