@@ -34,7 +34,7 @@ def hsdic2list(dic):
     return [
         pair for pairs in [
             [('HiddenServiceDir',vals[0]),('HiddenServicePort',vals[1])]
-            for vals in zip(dic['HiddenServiceDir'],dic['HiddenServicePort'])
+            for vals in zip(dic.get('HiddenServiceDir',[]),dic.get('HiddenServicePort',[]))
         ] for pair in pairs
     ]
 
@@ -42,7 +42,7 @@ class OnionShare(object):
     def __init__(self, debug=False, local_only=False, stay_open=False):
         self.port = None
         self.controller = None
-        self.original_hs = None
+        self.hidserv_dir = None
 
         # debug mode
         if debug:
@@ -60,9 +60,17 @@ class OnionShare(object):
 
     def cleanup(self):
         if self.controller:
-            if self.original_hs:
-                # This doesn't seem to remove soon-to-be-stale hs. Why???
-                self.controller.set_options(hsdic2list(self.original_hs))
+            # Get fresh hidden services (maybe changed since last time)
+            # and remove ourselves
+            hsdic = self.controller.get_conf_map('HiddenServiceOptions') or {
+                'HiddenServiceDir': [], 'HiddenServicePort': []
+            }
+            if self.hidserv_dir and self.hidserv_dir in hsdic.get('HiddenServiceDir',[]):
+                dropme = hsdic['HiddenServiceDir'].index(self.hidserv_dir)
+                del hsdic['HiddenServiceDir'][dropme]
+                del hsdic['HiddenServicePort'][dropme]
+                self.controller.set_options(hsdic2list(hsdic))
+            # Politely close the controller
             self.controller.close()
         for filename in self.cleanup_filenames:
             if os.path.isfile(filename):
@@ -108,12 +116,12 @@ class OnionShare(object):
                 if persistent_hs_dir:
                     # We're relaying a service that needs a publicly
                     # known .onion URL (e.g. HiddenID)
-                    hidserv_dir = persistent_hs_dir
+                    self.hidserv_dir = persistent_hs_dir
                 else:
                     # Create a temporary hidden service,
                     # and tell cleanup to destroy it later
-                    hidserv_dir = '{0}/onionshare_{1}'.format(helpers.get_tmp_dir(), helpers.random_string(8))
-                    self.cleanup_filenames.append(hidserv_dir)
+                    self.hidserv_dir = '{0}/onionshare_{1}'.format(helpers.get_tmp_dir(), helpers.random_string(8))
+                    self.cleanup_filenames.append(self.hidserv_dir)
 
                 # connect to the tor controlport
                 self.controller = None
@@ -139,21 +147,22 @@ class OnionShare(object):
                             pass
 
                 # set up hidden service
-                self.original_hs = self.controller.get_conf_map('HiddenServiceOptions') or {
+                hsdic = self.controller.get_conf_map('HiddenServiceOptions') or {
                     'HiddenServiceDir': [], 'HiddenServicePort': []
                 }
-                new_hs = self.original_hs.copy()
-                if not hidserv_dir in new_hs['HiddenServiceDir']:
-                    # Unless another instance has opened
-                    # the same persistent_hs_dir already
-                    new_hs['HiddenServiceDir'].append(hidserv_dir)
-                    new_hs['HiddenServicePort'].append(
-                        '80 127.0.0.1:{0}'.format(self.port))
+                if self.hidserv_dir in hsdic.get('HiddenServiceDir',[]):
+                    # Maybe a stale service with the wrong local port
+                    dropme = hsdic['HiddenServiceDir'].index(self.hidserv_dir)
+                    del hsdic['HiddenServiceDir'][dropme]
+                    del hsdic['HiddenServicePort'][dropme]
+                hsdic['HiddenServiceDir'] = hsdic.get('HiddenServiceDir',[])+[self.hidserv_dir]
+                hsdic['HiddenServicePort'] = hsdic.get('HiddenServicePort',[])+[
+                    '80 127.0.0.1:{0}'.format(self.port) ]
 
-                self.controller.set_options(hsdic2list(new_hs))
+                self.controller.set_options(hsdic2list(hsdic))
 
                 # figure out the .onion hostname
-                hostname_file = '{0}/hostname'.format(hidserv_dir)
+                hostname_file = '{0}/hostname'.format(self.hidserv_dir)
                 self.onion_host = open(hostname_file, 'r').read().strip()
 
     def wait_for_hs(self):
