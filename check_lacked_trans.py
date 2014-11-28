@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-'''
+"""
 Check translation lacked or disused.
 
 Example:
-in OninShare directory
+in OnionShare directory
 $ check_lacked_trans.py
 de disused choose_file
 de disused gui_starting_server
@@ -24,7 +24,7 @@ es disused gui_starting_server
 2. load translation key from locale/*.json.
 3. compare these.
 
-'''
+"""
 
 
 import fileinput, argparse, re, os, codecs, json, sys
@@ -75,12 +75,10 @@ def main():
             key = m.group(1)
             translate_keys.add(key)
 
-
     if args.show_all_keys:
         for k in sorted(translate_keys):
             print k
         sys.exit()
-
 
     locale_files = [f for f in files_in(dir, 'locale') if f.endswith('.json')]
     for locale_file in locale_files:
